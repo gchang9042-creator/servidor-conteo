@@ -1,8 +1,11 @@
 import sqlite3
 from flask import Flask, request
-import os 
+import os
 
 app = Flask(__name__)
+
+CLAVE_SECRETA = "unidades-moviles-2620-mgchs"
+
 conexion = sqlite3.connect("eventos.db", check_same_thread=False)
 cursor = conexion.cursor()
 
@@ -15,6 +18,7 @@ cursor.execute("""
     )
 """)
 conexion.commit()
+
 @app.route("/")
 def inicio():
     return "¡Hola, soy el servidor!"
@@ -22,6 +26,10 @@ def inicio():
 @app.route("/evento", methods=["POST"])
 def recibir_evento():
     datos = request.get_json()
+
+    if datos.get("clave") != CLAVE_SECRETA:
+        return {"error": "No autorizado"}, 401
+
     print("Evento recibido:", datos)
 
     bus = datos["bus"]
@@ -30,9 +38,16 @@ def recibir_evento():
 
     cursor.execute("INSERT INTO eventos (bus, hora, tipo) VALUES (?, ?, ?)", (bus, hora, tipo))
     conexion.commit()
+
     return {"mensaje": "Evento guardado correctamente"}
+
 @app.route("/eventos", methods=["GET"])
 def obtener_eventos():
+    clave_recibida = request.args.get("clave")
+
+    if clave_recibida != CLAVE_SECRETA:
+        return {"error": "No autorizado"}, 401
+
     cursor.execute("SELECT bus, hora, tipo FROM eventos")
     filas = cursor.fetchall()
 
