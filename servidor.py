@@ -21,8 +21,13 @@ cursor.execute("""
 
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS vehiculos (
-        placa TEXT PRIMARY KEY
+        placa TEXT PRIMARY KEY,
+        cliente TEXT
     )
+""")
+
+cursor.execute("""
+    UPDATE vehiculos SET cliente = 'Cliente 1' WHERE cliente IS NULL
 """)
 
 cursor.execute("""
@@ -97,14 +102,15 @@ def obtener_vehiculos():
     if request.args.get("clave") != CLAVE_ADMIN:
         return {"error": "No autorizado"}, 401
 
-    cursor.execute("SELECT placa FROM vehiculos")
+    cursor.execute("SELECT placa, cliente FROM vehiculos")
     filas = cursor.fetchall()
 
-    lista_placas = []
+    lista_vehiculos = []
     for fila in filas:
-        lista_placas.append(fila[0])
+        vehiculo = {"placa": fila[0], "cliente": fila[1]}
+        lista_vehiculos.append(vehiculo)
 
-    return {"vehiculos": lista_placas}
+    return {"vehiculos": lista_vehiculos}
 
 
 @app.route("/vehiculo", methods=["POST"])
@@ -115,12 +121,12 @@ def agregar_vehiculo():
         return {"error": "No autorizado"}, 401
 
     placa = datos["placa"].strip().upper()
+    nombre_cliente = datos["cliente"].strip()
 
-    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa) VALUES (?)", (placa,))
+    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa, cliente) VALUES (?, ?)", (placa, nombre_cliente))
     conexion.commit()
 
     return {"mensaje": "Vehiculo agregado correctamente"}
-
 
 @app.route("/vehiculo", methods=["DELETE"])
 def eliminar_vehiculo():
