@@ -1,8 +1,9 @@
 import sqlite3
-from flask import Flask, request
+from flask import Flask, request, render_template, session, redirect
 import os
 
 app = Flask(__name__)
+app.secret_key = "otra-clave-secreta-solo-para-sesiones-2026"
 
 CLAVE_ADMIN = "admin-mgchs-2026-super-secreta"
 
@@ -51,6 +52,24 @@ def obtener_cliente_por_clave(clave):
 @app.route("/")
 def inicio():
     return "¡Hola, soy el servidor!"
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        nombre_ingresado = request.form.get("nombre").strip()
+        clave_ingresada = request.form.get("clave").strip()
+
+        cursor.execute("SELECT clave FROM clientes WHERE nombre_cliente = ?", (nombre_ingresado,))
+        resultado = cursor.fetchone()
+
+        if resultado is not None and resultado[0] == clave_ingresada:
+            session["cliente"] = nombre_ingresado
+            return redirect("/panel")
+        else:
+            return render_template("login.html", error="Usuario o contraseña incorrectos")
+
+    return render_template("login.html", error=None)
 
 
 @app.route("/evento", methods=["POST"])
@@ -127,6 +146,7 @@ def agregar_vehiculo():
     conexion.commit()
 
     return {"mensaje": "Vehiculo agregado correctamente"}
+
 
 @app.route("/vehiculo", methods=["DELETE"])
 def eliminar_vehiculo():
