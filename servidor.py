@@ -1,327 +1,331 @@
-# ==========================================================
-#  servidor.py — Servidor central del sistema de conteo
-#  Guarda clientes, vehículos y eventos de entrada/salida
-# ==========================================================
-
-import os
 import sqlite3
-from datetime import datetime
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template, session, redirect
+from datetime import timedelta
+import os
 
 app = Flask(__name__)
+app.secret_key = "otra-clave-secreta-solo-para-sesiones-2026"
+app.permanent_session_lifetime = timedelta(days=30)
 
-ARCHIVO_BD = "conteo.db"
+CLAVE_ADMIN = "admin-mgchs-2026-super-secreta"
 
-# La clave de administrador NO se escribe aquí.
-# Se configura en Render: Environment -> CLAVE_ADMIN
-CLAVE_ADMIN = os.environ.get("CLAVE_ADMIN")
+conexion = sqlite3.connect("eventos.db", check_same_thread=False)
+cursor = conexion.cursor()
 
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS eventos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bus TEXT,
+        hora TEXT,
+        tipo TEXT,
+        cliente TEXT
+    )
+""")
 
-# ---------- BASE DE DATOS ----------
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS vehiculos (
+        placa TEXT PRIMARY KEY,
+        cliente TEXT
+    )
+""")
 
-def conectar():
-    conexion = sqlite3.connect(ARCHIVO_BD)
-    conexion.row_factory = sqlite3.Row
-    return conexion
+cursor.execute("""
+    UPDATE vehiculos SET cliente = 'Cliente 1' WHERE cliente IS NULL
+""")
 
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS clientes (
+        clave TEXT PRIMARY KEY,
+        nombre_cliente TEXT
+    )
+""")
 
-def crear_tablas():
-    conexion = conectar()
-    conexion.execute("""
-        CREATE TABLE IF NOT EXISTS clientes (
-            clave TEXT PRIMARY KEY,
-            nombre_cliente TEXT UNIQUE NOT NULL
-        )
-    """)
-    conexion.execute("""
-        CREATE TABLE IF NOT EXISTS vehiculos (
-            placa TEXT PRIMARY KEY,
-            cliente TEXT NOT NULL
-        )
-    """)
-    conexion.execute("""
-        CREATE TABLE IF NOT EXISTS eventos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            placa TEXT NOT NULL,
-            tipo TEXT NOT NULL,
-            fecha TEXT NOT NULL
-        )
-    """)
-    conexion.commit()
-    conexion.close()
+conexion.commit()
 
 
-# ---------- FUNCIONES DE AYUDA ----------
+def obtener_cliente_por_clave(clave):
+    cursor.execute("SELECT nombre_cliente FROM clientes WHERE clave = ?", (clave,))
+    resultado = cursor.fetchone()
+    if resultado is None:
+        return None
+    return resultado[0]
 
-def es_admin(clave):
-    return CLAVE_ADMIN is not None and clave == CLAVE_ADMIN
-
-
-def leer_json():
-    datos = request.get_json(silent=True)
-    if datos is None:
-        return {}
-    return datos
-
-
-def buscar_cliente_por_clave(clave):
-    conexion = conectar()
-    fila = conexion.execute(
-        "SELECT * FROM clientes WHERE clave = ?", (clave,)
-    ).fetchone()
-    conexion.close()
-    return fila
-
-
-# ---------- PÁGINA DE PRUEBA ----------
 
 @app.route("/")
 def inicio():
-    return jsonify({"mensaje": "Servidor de conteo funcionando"})
+    return "¡Hola, soy el servidor!"
 
 
-# ---------- CLIENTES (solo administrador) ----------
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        nombre_ingresado = request.form.get("nombre").strip()
+        clave_ingresada = request.form.get("clave").strip()
+        recordarme = request.form.get("recordarme")
 
-@app.route("/clientes", methods=["GET"])
-def listar_clientes():
-    if not es_admin(request.args.get("clave")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
+        cursor.execute("SELECT clave FROM clientes WHERE nombre_cliente = ?", (nombre_ingresado,))
+        resultado = cursor.fetchone()
 
-    conexion = conectar()
-    filas = conexion.execute(
-        "SELECT nombre_cliente, clave FROM clientes ORDER BY nombre_cliente"
-    ).fetchall()
-    conexion.close()
-
-    lista = []
-    for fila in filas:
-        lista.append({"nombre_cliente": fila["nombre_cliente"], "clave": fila["clave"]})
-    return jsonify({"clientes": lista})
-
-
-@app.route("/cliente", methods=["POST"])
-def agregar_cliente():
-    datos = leer_json()
-    if not es_admin(datos.get("clave_admin")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
-
-    nombre = str(datos.get("nombre_cliente", "")).strip()
-    clave = str(datos.get("clave_cliente", "")).strip()
-    if nombre == "" or clave == "":
-        return jsonify({"mensaje": "Faltan el nombre o la clave"}), 400
-
-    conexion = conectar()
-    try:
-        conexion.execute(
-            "INSERT INTO clientes (clave, nombre_cliente) VALUES (?, ?)",
-            (clave, nombre),
-        )
-        conexion.commit()
-        mensaje = "Cliente agregado: " + nombre
-        codigo = 200
-    except sqlite3.IntegrityError:
-        mensaje = "Ya existe un cliente con ese nombre o esa clave"
-        codigo = 400
-    conexion.close()
-    return jsonify({"mensaje": mensaje}), codigo
-
-
-@app.route("/cliente/clave", methods=["POST"])
-def cambiar_clave_cliente():
-    datos = leer_json()
-    if not es_admin(datos.get("clave_admin")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
-
-    nombre = str(datos.get("nombre_cliente", "")).strip()
-    clave_nueva = str(datos.get("clave_nueva", "")).strip()
-    if nombre == "" or clave_nueva == "":
-        return jsonify({"mensaje": "Faltan el nombre o la clave nueva"}), 400
-
-    conexion = conectar()
-    try:
-        cursor = conexion.execute(
-            "UPDATE clientes SET clave = ? WHERE nombre_cliente = ?",
-            (clave_nueva, nombre),
-        )
-        conexion.commit()
-        if cursor.rowcount == 0:
-            mensaje = "No existe ese cliente"
-            codigo = 404
+        if resultado is not None and resultado[0] == clave_ingresada:
+            session["cliente"] = nombre_ingresado
+            session.permanent = True if recordarme else False
+            return redirect("/panel")
         else:
-            mensaje = "Clave actualizada para " + nombre
-            codigo = 200
-    except sqlite3.IntegrityError:
-        mensaje = "Esa clave ya la usa otro cliente"
-        codigo = 400
-    conexion.close()
-    return jsonify({"mensaje": mensaje}), codigo
+            return render_template("login.html", error="Usuario o contraseña incorrectos")
+
+    return render_template("login.html", error=None)
 
 
-@app.route("/cliente", methods=["DELETE"])
-def eliminar_cliente():
-    datos = leer_json()
-    if not es_admin(datos.get("clave_admin")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
+@app.route("/panel")
+def panel():
+    if "cliente" not in session:
+        return redirect("/login")
 
-    clave = str(datos.get("clave_cliente", "")).strip()
-    cliente = buscar_cliente_por_clave(clave)
-    if cliente is None:
-        return jsonify({"mensaje": "No existe ese cliente"}), 404
+    nombre_cliente = session["cliente"]
+    return render_template("panel.html", nombre_cliente=nombre_cliente)
 
-    # Al borrar un cliente también se borran sus vehículos
-    conexion = conectar()
-    conexion.execute("DELETE FROM vehiculos WHERE cliente = ?", (cliente["nombre_cliente"],))
-    conexion.execute("DELETE FROM clientes WHERE clave = ?", (clave,))
+
+@app.route("/logout")
+def logout():
+    session.pop("cliente", None)
+    return redirect("/login")
+
+
+@app.route("/cambiar-clave", methods=["POST"])
+def cambiar_clave():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+    datos = request.get_json()
+    clave_nueva = datos["clave_nueva"].strip()
+
+    if clave_nueva == "":
+        return {"error": "La clave no puede estar vacía"}, 400
+
+    cursor.execute("UPDATE clientes SET clave = ? WHERE nombre_cliente = ?", (clave_nueva, nombre_cliente))
     conexion.commit()
-    conexion.close()
-    return jsonify({"mensaje": "Cliente eliminado: " + cliente["nombre_cliente"]})
+
+    return {"mensaje": "Clave actualizada correctamente"}
 
 
-# ---------- VEHÍCULOS (solo administrador) ----------
+@app.route("/mis-vehiculos", methods=["GET"])
+def mis_vehiculos():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+
+    cursor.execute("SELECT placa FROM vehiculos WHERE cliente = ?", (nombre_cliente,))
+    filas = cursor.fetchall()
+
+    lista_placas = []
+    for fila in filas:
+        lista_placas.append(fila[0])
+
+    return {"vehiculos": lista_placas}
+
+
+@app.route("/mi-vehiculo", methods=["POST"])
+def agregar_mi_vehiculo():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+    datos = request.get_json()
+    placa = datos["placa"].strip().upper()
+
+    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa, cliente) VALUES (?, ?)", (placa, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Vehiculo agregado correctamente"}
+
+
+@app.route("/mi-vehiculo", methods=["DELETE"])
+def eliminar_mi_vehiculo():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+    datos = request.get_json()
+    placa = datos["placa"].strip().upper()
+
+    cursor.execute("DELETE FROM vehiculos WHERE placa = ? AND cliente = ?", (placa, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Vehiculo eliminado correctamente"}
+
+
+@app.route("/mis-eventos", methods=["GET"])
+def mis_eventos():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+
+    cursor.execute("SELECT bus, hora, tipo FROM eventos WHERE cliente = ?", (nombre_cliente,))
+    filas = cursor.fetchall()
+
+    lista_eventos = []
+    for fila in filas:
+        evento = {"bus": fila[0], "hora": fila[1], "tipo": fila[2]}
+        lista_eventos.append(evento)
+
+    return {"eventos": lista_eventos}
+
+
+@app.route("/evento", methods=["POST"])
+def recibir_evento():
+    datos = request.get_json()
+    clave = datos.get("clave")
+
+    nombre_cliente = obtener_cliente_por_clave(clave)
+    if nombre_cliente is None:
+        return {"error": "No autorizado"}, 401
+
+    bus = datos["bus"]
+    hora = datos["hora"]
+    tipo = datos["tipo"]
+
+    cursor.execute("SELECT placa FROM vehiculos WHERE placa = ?", (bus,))
+    existe = cursor.fetchone()
+
+    if existe is None:
+        return {"error": "Placa no registrada"}, 403
+
+    cursor.execute("INSERT INTO eventos (bus, hora, tipo, cliente) VALUES (?, ?, ?, ?)", (bus, hora, tipo, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Evento guardado correctamente"}
+
+
+@app.route("/eventos", methods=["GET"])
+def obtener_eventos():
+    clave = request.args.get("clave")
+
+    nombre_cliente = obtener_cliente_por_clave(clave)
+    if nombre_cliente is None:
+        return {"error": "No autorizado"}, 401
+
+    cursor.execute("SELECT bus, hora, tipo FROM eventos WHERE cliente = ?", (nombre_cliente,))
+    filas = cursor.fetchall()
+
+    lista_eventos = []
+    for fila in filas:
+        evento = {"bus": fila[0], "hora": fila[1], "tipo": fila[2]}
+        lista_eventos.append(evento)
+
+    return {"eventos": lista_eventos}
+
 
 @app.route("/vehiculos", methods=["GET"])
-def listar_vehiculos():
-    if not es_admin(request.args.get("clave")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
+def obtener_vehiculos():
+    if request.args.get("clave") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
 
-    conexion = conectar()
-    filas = conexion.execute(
-        "SELECT placa, cliente FROM vehiculos ORDER BY cliente, placa"
-    ).fetchall()
-    conexion.close()
+    cursor.execute("SELECT placa, cliente FROM vehiculos")
+    filas = cursor.fetchall()
 
-    lista = []
+    lista_vehiculos = []
     for fila in filas:
-        lista.append({"placa": fila["placa"], "cliente": fila["cliente"]})
-    return jsonify({"vehiculos": lista})
+        vehiculo = {"placa": fila[0], "cliente": fila[1]}
+        lista_vehiculos.append(vehiculo)
+
+    return {"vehiculos": lista_vehiculos}
 
 
 @app.route("/vehiculo", methods=["POST"])
 def agregar_vehiculo():
-    datos = leer_json()
-    if not es_admin(datos.get("clave")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
+    datos = request.get_json()
 
-    placa = str(datos.get("placa", "")).strip().upper()
-    cliente = str(datos.get("cliente", "")).strip()
-    if placa == "" or cliente == "":
-        return jsonify({"mensaje": "Faltan la placa o el cliente"}), 400
+    if datos.get("clave") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
 
-    conexion = conectar()
-    existe = conexion.execute(
-        "SELECT 1 FROM clientes WHERE nombre_cliente = ?", (cliente,)
-    ).fetchone()
-    if existe is None:
-        conexion.close()
-        return jsonify({"mensaje": "Ese cliente no existe"}), 404
+    placa = datos["placa"].strip().upper()
+    nombre_cliente = datos["cliente"].strip()
 
-    try:
-        conexion.execute(
-            "INSERT INTO vehiculos (placa, cliente) VALUES (?, ?)", (placa, cliente)
-        )
-        conexion.commit()
-        mensaje = "Vehículo " + placa + " asignado a " + cliente
-        codigo = 200
-    except sqlite3.IntegrityError:
-        mensaje = "Esa placa ya está registrada"
-        codigo = 400
-    conexion.close()
-    return jsonify({"mensaje": mensaje}), codigo
+    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa, cliente) VALUES (?, ?)", (placa, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Vehiculo agregado correctamente"}
 
 
 @app.route("/vehiculo", methods=["DELETE"])
 def eliminar_vehiculo():
-    datos = leer_json()
-    if not es_admin(datos.get("clave")):
-        return jsonify({"mensaje": "Clave de administrador incorrecta"}), 403
+    datos = request.get_json()
 
-    placa = str(datos.get("placa", "")).strip().upper()
-    conexion = conectar()
-    cursor = conexion.execute("DELETE FROM vehiculos WHERE placa = ?", (placa,))
+    if datos.get("clave") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
+
+    placa = datos["placa"].strip().upper()
+
+    cursor.execute("DELETE FROM vehiculos WHERE placa = ?", (placa,))
     conexion.commit()
-    conexion.close()
 
-    if cursor.rowcount == 0:
-        return jsonify({"mensaje": "No existe esa placa"}), 404
-    return jsonify({"mensaje": "Vehículo eliminado: " + placa})
+    return {"mensaje": "Vehiculo eliminado correctamente"}
 
 
-# ---------- EVENTOS (los envía el programa de conteo de cada bus) ----------
+@app.route("/clientes", methods=["GET"])
+def obtener_clientes():
+    if request.args.get("clave") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
 
-@app.route("/evento", methods=["POST"])
-def registrar_evento():
-    datos = leer_json()
-    cliente = buscar_cliente_por_clave(str(datos.get("clave", "")).strip())
-    if cliente is None:
-        return jsonify({"mensaje": "Clave de cliente incorrecta"}), 403
+    cursor.execute("SELECT clave, nombre_cliente FROM clientes")
+    filas = cursor.fetchall()
 
-    placa = str(datos.get("placa", "")).strip().upper()
-    tipo = str(datos.get("tipo", "")).strip().lower()
-    fecha = datos.get("fecha") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    if tipo not in ("entrada", "salida"):
-        return jsonify({"mensaje": "El tipo debe ser 'entrada' o 'salida'"}), 400
-
-    conexion = conectar()
-    vehiculo = conexion.execute(
-        "SELECT 1 FROM vehiculos WHERE placa = ? AND cliente = ?",
-        (placa, cliente["nombre_cliente"]),
-    ).fetchone()
-    if vehiculo is None:
-        conexion.close()
-        return jsonify({"mensaje": "Ese vehículo no está autorizado para este cliente"}), 403
-
-    conexion.execute(
-        "INSERT INTO eventos (placa, tipo, fecha) VALUES (?, ?, ?)", (placa, tipo, fecha)
-    )
-    conexion.commit()
-    conexion.close()
-    return jsonify({"mensaje": "Evento guardado"})
-
-
-@app.route("/eventos", methods=["GET"])
-def listar_eventos():
-    clave = request.args.get("clave", "")
-    placa = request.args.get("placa", "").strip().upper()
-
-    conexion = conectar()
-    if es_admin(clave):
-        consulta = "SELECT e.placa, e.tipo, e.fecha, v.cliente FROM eventos e LEFT JOIN vehiculos v ON e.placa = v.placa"
-        parametros = []
-        if placa != "":
-            consulta += " WHERE e.placa = ?"
-            parametros.append(placa)
-    else:
-        cliente = buscar_cliente_por_clave(clave)
-        if cliente is None:
-            conexion.close()
-            return jsonify({"mensaje": "Clave incorrecta"}), 403
-        consulta = "SELECT e.placa, e.tipo, e.fecha, v.cliente FROM eventos e JOIN vehiculos v ON e.placa = v.placa WHERE v.cliente = ?"
-        parametros = [cliente["nombre_cliente"]]
-        if placa != "":
-            consulta += " AND e.placa = ?"
-            parametros.append(placa)
-
-    consulta += " ORDER BY e.fecha DESC LIMIT 500"
-    filas = conexion.execute(consulta, parametros).fetchall()
-    conexion.close()
-
-    lista = []
+    lista_clientes = []
     for fila in filas:
-        lista.append({
-            "placa": fila["placa"],
-            "tipo": fila["tipo"],
-            "fecha": fila["fecha"],
-            "cliente": fila["cliente"],
-        })
-    return jsonify({"eventos": lista})
+        cliente = {"clave": fila[0], "nombre_cliente": fila[1]}
+        lista_clientes.append(cliente)
+
+    return {"clientes": lista_clientes}
 
 
-# ---------- ARRANQUE ----------
+@app.route("/cliente", methods=["POST"])
+def agregar_cliente():
+    datos = request.get_json()
 
-crear_tablas()
+    if datos.get("clave_admin") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
 
-if __name__ == "__main__":
-    puerto = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=puerto)
+    clave_nueva = datos["clave_cliente"].strip()
+    nombre_cliente = datos["nombre_cliente"].strip()
+
+    cursor.execute("INSERT OR IGNORE INTO clientes (clave, nombre_cliente) VALUES (?, ?)", (clave_nueva, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Cliente agregado correctamente"}
+
+
+@app.route("/cliente", methods=["DELETE"])
+def eliminar_cliente():
+    datos = request.get_json()
+
+    if datos.get("clave_admin") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
+
+    clave_eliminar = datos["clave_cliente"].strip()
+
+    cursor.execute("DELETE FROM clientes WHERE clave = ?", (clave_eliminar,))
+    conexion.commit()
+
+    return {"mensaje": "Cliente eliminado correctamente"}
+
+
+@app.route("/cliente/clave", methods=["POST"])
+def cambiar_clave_cliente():
+    datos = request.get_json()
+
+    if datos.get("clave_admin") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = datos["nombre_cliente"].strip()
+    clave_nueva = datos["clave_nueva"].strip()
+
+    cursor.execute("UPDATE clientes SET clave = ? WHERE nombre_cliente = ?", (clave_nueva, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Clave del cliente actualizada correctamente"}
+
+
+app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
