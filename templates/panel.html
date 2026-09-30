@@ -16,7 +16,7 @@
     </style>
 </head>
 <body>
-    <h1>🚌 Bienvenido, {{ nombre_cliente }}</h1>
+    <h1>🚌 Bienvenido, {{ nombre_cliente }} <a href="/logout" style="font-size: 14px; color: #e74c3c;">(Cerrar sesión)</a></h1>
 
     <div class="panel">
         <h3>Agregar vehículo</h3>
@@ -26,6 +26,11 @@
 
         <h3>Mis vehículos</h3>
         <ul id="lista_vehiculos"></ul>
+
+        <h3>Cambiar contraseña</h3>
+        <input type="password" id="caja_clave_nueva" placeholder="Nueva clave">
+        <button onclick="cambiarClave()">Actualizar</button>
+        <p class="mensaje" id="mensaje_clave"></p>
 
         <h3>Dashboard de conteo</h3>
         <div>
@@ -40,105 +45,3 @@
 
         <ul id="lista_eventos"></ul>
     </div>
-
-    <script>
-        // ---------- SECCIÓN VEHÍCULOS ----------
-
-        function cargarVehiculos() {
-            fetch("/mis-vehiculos")
-                .then(respuesta => respuesta.json())
-                .then(datos => {
-                    const lista = document.getElementById("lista_vehiculos");
-                    lista.innerHTML = "";
-                    datos.vehiculos.forEach(placa => {
-                        const item = document.createElement("li");
-                        item.innerHTML = placa + ' <button class="eliminar" onclick="eliminarVehiculo(\'' + placa + '\')">Eliminar</button>';
-                        lista.appendChild(item);
-                    });
-                });
-        }
-
-        function agregarVehiculo() {
-            const placa = document.getElementById("caja_placa").value.trim();
-            if (placa === "") {
-                return;
-            }
-
-            fetch("/mi-vehiculo", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ placa: placa })
-            })
-                .then(respuesta => respuesta.json())
-                .then(datos => {
-                    document.getElementById("mensaje_estado").innerText = datos.mensaje;
-                    document.getElementById("caja_placa").value = "";
-                    cargarVehiculos();
-                });
-        }
-
-        function eliminarVehiculo(placa) {
-            fetch("/mi-vehiculo", {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ placa: placa })
-            })
-                .then(respuesta => respuesta.json())
-                .then(datos => {
-                    document.getElementById("mensaje_estado").innerText = datos.mensaje;
-                    cargarVehiculos();
-                });
-        }
-
-        // ---------- SECCIÓN DASHBOARD ----------
-
-        function buscarEventos() {
-            const fecha = document.getElementById("filtro_fecha").value || new Date().toISOString().split("T")[0];
-            const desde = document.getElementById("filtro_desde").value || "00:00:00";
-            const hasta = document.getElementById("filtro_hasta").value || "23:59:59";
-            const placaFiltro = document.getElementById("filtro_placa").value.trim().toUpperCase();
-
-            fetch("/mis-eventos")
-                .then(respuesta => respuesta.json())
-                .then(datos => {
-                    let totalEntradas = 0;
-                    let totalSalidas = 0;
-                    const lista = document.getElementById("lista_eventos");
-                    lista.innerHTML = "";
-
-                    datos.eventos.forEach(evento => {
-                        const partes = evento.hora.split(" ");
-                        const fechaEvento = partes[0];
-                        const horaEvento = partes[1];
-
-                        if (placaFiltro !== "" && evento.bus.toUpperCase() !== placaFiltro) {
-                            return;
-                        }
-
-                        if (fechaEvento === fecha && horaEvento >= desde && horaEvento <= hasta) {
-                            const icono = evento.tipo === "entrada" ? "🟢" : "🔴";
-                            const item = document.createElement("li");
-                            item.innerText = icono + " " + evento.bus + "  " + horaEvento + "  " + evento.tipo;
-                            lista.appendChild(item);
-
-                            if (evento.tipo === "entrada") {
-                                totalEntradas++;
-                            } else {
-                                totalSalidas++;
-                            }
-                        }
-                    });
-
-                    document.getElementById("total_entradas").innerText = totalEntradas;
-                    document.getElementById("total_salidas").innerText = totalSalidas;
-                });
-        }
-
-        // ---------- INICIO ----------
-
-        document.getElementById("filtro_fecha").value = new Date().toISOString().split("T")[0];
-        cargarVehiculos();
-        buscarEventos();
-    </script>
-</body>
-</html>
