@@ -6,8 +6,8 @@
     <style>
         body { background-color: #1e2a38; font-family: Segoe UI, sans-serif; color: #ecf0f1; padding: 30px; margin: 0; }
         h1 { margin-bottom: 5px; }
-        .panel { background-color: #25384d; padding: 20px; border-radius: 8px; max-width: 500px; margin-top: 20px; }
-        input { padding: 8px; border-radius: 4px; border: none; margin-right: 8px; }
+        .panel { background-color: #25384d; padding: 20px; border-radius: 8px; max-width: 700px; margin-top: 20px; display: block; }
+        input { padding: 8px; border-radius: 4px; border: none; margin-right: 8px; margin-bottom: 8px; }
         button { padding: 8px 16px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button.eliminar { background-color: #e74c3c; padding: 4px 10px; font-size: 12px; margin-left: 10px; }
         ul { list-style: none; padding: 0; }
@@ -32,6 +32,7 @@
             <input type="text" id="filtro_fecha" placeholder="AAAA-MM-DD">
             <input type="text" id="filtro_desde" placeholder="Desde HH:MM:SS">
             <input type="text" id="filtro_hasta" placeholder="Hasta HH:MM:SS">
+            <input type="text" id="filtro_placa" placeholder="Placa (vacío = todas)">
             <button onclick="buscarEventos()">Buscar</button>
         </div>
 
@@ -95,6 +96,7 @@
             const fecha = document.getElementById("filtro_fecha").value || new Date().toISOString().split("T")[0];
             const desde = document.getElementById("filtro_desde").value || "00:00:00";
             const hasta = document.getElementById("filtro_hasta").value || "23:59:59";
+            const placaFiltro = document.getElementById("filtro_placa").value.trim().toUpperCase();
 
             fetch("/mis-eventos")
                 .then(respuesta => respuesta.json())
@@ -108,6 +110,10 @@
                         const partes = evento.hora.split(" ");
                         const fechaEvento = partes[0];
                         const horaEvento = partes[1];
+
+                        if (placaFiltro !== "" && evento.bus.toUpperCase() !== placaFiltro) {
+                            return;
+                        }
 
                         if (fechaEvento === fecha && horaEvento >= desde && horaEvento <= hasta) {
                             const icono = evento.tipo === "entrada" ? "🟢" : "🔴";
