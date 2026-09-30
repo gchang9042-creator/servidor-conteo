@@ -6,7 +6,8 @@
     <style>
         body { background-color: #1e2a38; font-family: Segoe UI, sans-serif; color: #ecf0f1; padding: 30px; margin: 0; }
         h1 { margin-bottom: 5px; }
-        .panel { background-color: #25384d; padding: 20px; border-radius: 8px; max-width: 700px; margin-top: 20px; display: block; }
+        .contenedor { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px; align-items: flex-start; }
+        .panel { background-color: #25384d; padding: 20px; border-radius: 8px; flex: 1; min-width: 320px; }
         input { padding: 8px; border-radius: 4px; border: none; margin-right: 8px; margin-bottom: 8px; }
         button { padding: 8px 16px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button.eliminar { background-color: #e74c3c; padding: 4px 10px; font-size: 12px; margin-left: 10px; }
@@ -18,32 +19,36 @@
 <body>
     <h1>🚌 Bienvenido, {{ nombre_cliente }} <a href="/logout" style="font-size: 14px; color: #e74c3c;">(Cerrar sesión)</a></h1>
 
-    <div class="panel">
-        <h3>Agregar vehículo</h3>
-        <input type="text" id="caja_placa" placeholder="Placa">
-        <button onclick="agregarVehiculo()">Agregar</button>
-        <p class="mensaje" id="mensaje_estado"></p>
+    <div class="contenedor">
+        <div class="panel">
+            <h3>Agregar vehículo</h3>
+            <input type="text" id="caja_placa" placeholder="Placa">
+            <button onclick="agregarVehiculo()">Agregar</button>
+            <p class="mensaje" id="mensaje_estado"></p>
 
-        <h3>Mis vehículos</h3>
-        <ul id="lista_vehiculos"></ul>
+            <h3>Mis vehículos</h3>
+            <ul id="lista_vehiculos"></ul>
 
-        <h3>Cambiar contraseña</h3>
-        <input type="password" id="caja_clave_nueva" placeholder="Nueva clave">
-        <button onclick="cambiarClave()">Actualizar</button>
-        <p class="mensaje" id="mensaje_clave"></p>
-
-        <h3>Dashboard de conteo</h3>
-        <div>
-            <input type="text" id="filtro_fecha" placeholder="AAAA-MM-DD">
-            <input type="text" id="filtro_desde" placeholder="Desde HH:MM:SS">
-            <input type="text" id="filtro_hasta" placeholder="Hasta HH:MM:SS">
-            <input type="text" id="filtro_placa" placeholder="Placa (vacío = todas)">
-            <button onclick="buscarEventos()">Buscar</button>
+            <h3>Cambiar contraseña</h3>
+            <input type="password" id="caja_clave_nueva" placeholder="Nueva clave">
+            <button onclick="cambiarClave()">Actualizar</button>
+            <p class="mensaje" id="mensaje_clave"></p>
         </div>
 
-        <p><strong>Entradas:</strong> <span id="total_entradas">0</span> &nbsp; <strong>Salidas:</strong> <span id="total_salidas">0</span></p>
+        <div class="panel">
+            <h3>Dashboard de conteo</h3>
+            <div>
+                <input type="text" id="filtro_fecha" placeholder="AAAA-MM-DD">
+                <input type="text" id="filtro_desde" placeholder="Desde HH:MM:SS">
+                <input type="text" id="filtro_hasta" placeholder="Hasta HH:MM:SS">
+                <input type="text" id="filtro_placa" placeholder="Placa (vacío = todas)">
+                <button onclick="buscarEventos()">Buscar</button>
+            </div>
 
-        <ul id="lista_eventos"></ul>
+            <p><strong>Entradas:</strong> <span id="total_entradas">0</span> &nbsp; <strong>Salidas:</strong> <span id="total_salidas">0</span></p>
+
+            <ul id="lista_eventos"></ul>
+        </div>
     </div>
 
     <script>
