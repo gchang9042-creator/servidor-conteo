@@ -14,6 +14,7 @@
         ul { list-style: none; padding: 0; }
         li { background-color: #0f1720; padding: 10px; margin-top: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
         .mensaje { font-size: 13px; color: #95a5a6; margin-top: 10px; }
+        #lista_vehiculos { max-height: 220px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -28,11 +29,6 @@
 
             <h3>Mis vehículos</h3>
             <ul id="lista_vehiculos"></ul>
-
-            <h3>Cambiar contraseña</h3>
-            <input type="password" id="caja_clave_nueva" placeholder="Nueva clave">
-            <button onclick="cambiarClave()">Actualizar</button>
-            <p class="mensaje" id="mensaje_clave"></p>
         </div>
 
         <div class="panel">
@@ -48,6 +44,11 @@
             <p><strong>Entradas:</strong> <span id="total_entradas">0</span> &nbsp; <strong>Salidas:</strong> <span id="total_salidas">0</span></p>
 
             <ul id="lista_eventos"></ul>
+
+            <h3>Cambiar contraseña</h3>
+            <input type="password" id="caja_clave_nueva" placeholder="Nueva clave">
+            <button onclick="cambiarClave()">Actualizar</button>
+            <p class="mensaje" id="mensaje_clave"></p>
         </div>
     </div>
 
