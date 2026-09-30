@@ -71,6 +71,13 @@ def login():
 
     return render_template("login.html", error=None)
 
+@app.route("/panel")
+def panel():
+    if "cliente" not in session:
+        return redirect("/login")
+
+    nombre_cliente = session["cliente"]
+    return render_template("panel.html", nombre_cliente=nombre_cliente)
 
 @app.route("/evento", methods=["POST"])
 def recibir_evento():
