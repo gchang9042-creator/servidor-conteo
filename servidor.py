@@ -122,6 +122,22 @@ def eliminar_mi_vehiculo():
     conexion.commit()
 
     return {"mensaje": "Vehiculo eliminado correctamente"}
+@app.route("/mis-eventos", methods=["GET"])
+def mis_eventos():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+
+    cursor.execute("SELECT bus, hora, tipo FROM eventos WHERE cliente = ?", (nombre_cliente,))
+    filas = cursor.fetchall()
+
+    lista_eventos = []
+    for fila in filas:
+        evento = {"bus": fila[0], "hora": fila[1], "tipo": fila[2]}
+        lista_eventos.append(evento)
+
+    return {"eventos": lista_eventos}
 
 @app.route("/evento", methods=["POST"])
 def recibir_evento():

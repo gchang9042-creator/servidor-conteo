@@ -26,9 +26,23 @@
 
         <h3>Mis vehículos</h3>
         <ul id="lista_vehiculos"></ul>
+
+        <h3>Dashboard de conteo</h3>
+        <div>
+            <input type="text" id="filtro_fecha" placeholder="AAAA-MM-DD">
+            <input type="text" id="filtro_desde" placeholder="Desde HH:MM:SS">
+            <input type="text" id="filtro_hasta" placeholder="Hasta HH:MM:SS">
+            <button onclick="buscarEventos()">Buscar</button>
+        </div>
+
+        <p><strong>Entradas:</strong> <span id="total_entradas">0</span> &nbsp; <strong>Salidas:</strong> <span id="total_salidas">0</span></p>
+
+        <ul id="lista_eventos"></ul>
     </div>
 
     <script>
+        // ---------- SECCIÓN VEHÍCULOS ----------
+
         function cargarVehiculos() {
             fetch("/mis-vehiculos")
                 .then(respuesta => respuesta.json())
@@ -75,7 +89,50 @@
                 });
         }
 
+        // ---------- SECCIÓN DASHBOARD ----------
+
+        function buscarEventos() {
+            const fecha = document.getElementById("filtro_fecha").value || new Date().toISOString().split("T")[0];
+            const desde = document.getElementById("filtro_desde").value || "00:00:00";
+            const hasta = document.getElementById("filtro_hasta").value || "23:59:59";
+
+            fetch("/mis-eventos")
+                .then(respuesta => respuesta.json())
+                .then(datos => {
+                    let totalEntradas = 0;
+                    let totalSalidas = 0;
+                    const lista = document.getElementById("lista_eventos");
+                    lista.innerHTML = "";
+
+                    datos.eventos.forEach(evento => {
+                        const partes = evento.hora.split(" ");
+                        const fechaEvento = partes[0];
+                        const horaEvento = partes[1];
+
+                        if (fechaEvento === fecha && horaEvento >= desde && horaEvento <= hasta) {
+                            const icono = evento.tipo === "entrada" ? "🟢" : "🔴";
+                            const item = document.createElement("li");
+                            item.innerText = icono + " " + evento.bus + "  " + horaEvento + "  " + evento.tipo;
+                            lista.appendChild(item);
+
+                            if (evento.tipo === "entrada") {
+                                totalEntradas++;
+                            } else {
+                                totalSalidas++;
+                            }
+                        }
+                    });
+
+                    document.getElementById("total_entradas").innerText = totalEntradas;
+                    document.getElementById("total_salidas").innerText = totalSalidas;
+                });
+        }
+
+        // ---------- INICIO ----------
+
+        document.getElementById("filtro_fecha").value = new Date().toISOString().split("T")[0];
         cargarVehiculos();
+        buscarEventos();
     </script>
 </body>
 </html>
