@@ -1,28 +1,278 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Iniciar sesión</title>
-    <style>
-        body { background-color: #1e2a38; font-family: Segoe UI, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .caja { background-color: #25384d; padding: 30px; border-radius: 8px; width: 300px; }
-        h2 { color: #ecf0f1; text-align: center; }
-        input { width: 100%; padding: 8px; margin: 8px 0; border-radius: 4px; border: none; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .error { color: #e74c3c; text-align: center; font-size: 13px; }
-    </style>
-</head>
-<body>
-    <div class="caja">
-        <h2>🚌 Iniciar sesión</h2>
-        <form method="POST">
-            <input type="text" name="nombre" placeholder="Nombre de cliente" required>
-            <input type="password" name="clave" placeholder="Clave secreta" required>
-            <button type="submit">Entrar</button>
-        </form>
-        {% if error %}
-            <p class="error">{{ error }}</p>
-        {% endif %}
-    </div>
-</body>
-</html>
+import tkinter as tk
+import requests
+
+URL_SERVIDOR = "https://servidor-conteo.onrender.com"
+CLAVE_ADMIN = "admin-mgchs-2026-super-secreta"
+
+COLOR_FONDO = "#1e2a38"
+COLOR_PANEL = "#25384d"
+COLOR_ACENTO = "#2ecc71"
+COLOR_TEXTO = "#ecf0f1"
+COLOR_TEXTO_SUAVE = "#95a5a6"
+
+todos_los_vehiculos = []
+
+ventana = tk.Tk()
+ventana.title("Administración")
+ventana.geometry("950x680")
+ventana.configure(bg=COLOR_FONDO)
+
+titulo = tk.Label(ventana, text="⚙️ Administración", font=("Segoe UI", 16, "bold"), bg=COLOR_FONDO, fg=COLOR_TEXTO)
+titulo.grid(row=0, column=0, columnspan=2, pady=(15, 15))
+
+
+def actualizar_todo():
+    cargar_clientes()
+    cargar_vehiculos()
+
+
+boton_actualizar = tk.Button(ventana, text="🔄 Actualizar", font=("Segoe UI", 9, "bold"), bg=COLOR_ACENTO, fg="white", relief="flat", cursor="hand2", command=actualizar_todo)
+boton_actualizar.grid(row=0, column=1, sticky="e", padx=(0, 20), pady=(15, 15))
+
+# ---------- COLUMNA IZQUIERDA: CLIENTES ----------
+
+etiqueta_seccion_clientes = tk.Label(ventana, text="Clientes", font=("Segoe UI", 12, "bold"), bg=COLOR_FONDO, fg=COLOR_TEXTO)
+etiqueta_seccion_clientes.grid(row=1, column=0, sticky="w", padx=(20, 10))
+
+panel_formulario = tk.Frame(ventana, bg=COLOR_PANEL, padx=15, pady=12)
+panel_formulario.grid(row=2, column=0, sticky="ew", padx=(20, 10), pady=(5, 10))
+
+etiqueta_nombre = tk.Label(panel_formulario, text="Nombre del cliente", font=("Segoe UI", 9), bg=COLOR_PANEL, fg=COLOR_TEXTO_SUAVE, anchor="w")
+etiqueta_nombre.pack(fill="x")
+
+caja_nombre = tk.Entry(panel_formulario, font=("Segoe UI", 11), bg="white", fg="#2c3e50", relief="flat")
+caja_nombre.pack(fill="x", ipady=5, pady=(4, 10))
+
+etiqueta_clave = tk.Label(panel_formulario, text="Clave secreta del cliente", font=("Segoe UI", 9), bg=COLOR_PANEL, fg=COLOR_TEXTO_SUAVE, anchor="w")
+etiqueta_clave.pack(fill="x")
+
+caja_clave = tk.Entry(panel_formulario, font=("Segoe UI", 11), bg="white", fg="#2c3e50", relief="flat")
+caja_clave.pack(fill="x", ipady=5, pady=(4, 10))
+
+
+def agregar_cliente():
+    nombre = caja_nombre.get().strip()
+    clave = caja_clave.get().strip()
+
+    if nombre == "" or clave == "":
+        etiqueta_estado.config(text="Completa ambos campos")
+        return
+
+    datos = {"clave_admin": CLAVE_ADMIN, "clave_cliente": clave, "nombre_cliente": nombre}
+
+    try:
+        respuesta = requests.post(URL_SERVIDOR + "/cliente", json=datos)
+        etiqueta_estado.config(text=respuesta.json().get("mensaje", "Listo"))
+        caja_nombre.delete(0, tk.END)
+        caja_clave.delete(0, tk.END)
+        cargar_clientes()
+    except Exception as error:
+        etiqueta_estado.config(text="Error de conexión")
+
+
+boton_agregar = tk.Button(panel_formulario, text="Agregar cliente", font=("Segoe UI", 9, "bold"), bg=COLOR_ACENTO, fg="white", relief="flat", cursor="hand2", command=agregar_cliente)
+boton_agregar.pack(ipadx=15, ipady=5)
+
+
+def cambiar_clave_cliente_seleccionado():
+    seleccion = lista_clientes_widget.curselection()
+    if not seleccion:
+        etiqueta_estado.config(text="Selecciona un cliente de la lista")
+        return
+
+    clave_nueva = caja_clave.get().strip()
+    if clave_nueva == "":
+        etiqueta_estado.config(text="Escribe la nueva clave en el campo de arriba")
+        return
+
+    texto = lista_clientes_widget.get(seleccion[0])
+    nombre_cliente = texto.split("—")[0].strip()
+
+    datos = {"clave_admin": CLAVE_ADMIN, "nombre_cliente": nombre_cliente, "clave_nueva": clave_nueva}
+
+    try:
+        respuesta = requests.post(URL_SERVIDOR + "/cliente/clave", json=datos)
+        etiqueta_estado.config(text=respuesta.json().get("mensaje", "Listo"))
+        caja_clave.delete(0, tk.END)
+        cargar_clientes()
+    except Exception as error:
+        etiqueta_estado.config(text="Error de conexión")
+
+
+boton_cambiar_clave = tk.Button(panel_formulario, text="Cambiar clave del seleccionado", font=("Segoe UI", 9, "bold"), bg="#3498db", fg="white", relief="flat", cursor="hand2", command=cambiar_clave_cliente_seleccionado)
+boton_cambiar_clave.pack(ipadx=15, ipady=5, pady=(6, 0))
+
+etiqueta_estado = tk.Label(ventana, text="", font=("Segoe UI", 8), bg=COLOR_FONDO, fg=COLOR_TEXTO_SUAVE)
+etiqueta_estado.grid(row=3, column=0, sticky="w", padx=(20, 10))
+
+etiqueta_lista_titulo = tk.Label(ventana, text="Clientes registrados", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO, fg=COLOR_TEXTO)
+etiqueta_lista_titulo.grid(row=4, column=0, sticky="w", padx=(20, 10), pady=(8, 0))
+
+lista_clientes_widget = tk.Listbox(ventana, font=("Consolas", 9), height=8, bg="#0f1720", fg=COLOR_TEXTO, relief="flat", selectbackground=COLOR_ACENTO, highlightthickness=0)
+lista_clientes_widget.grid(row=5, column=0, sticky="ew", padx=(20, 10), pady=(5, 8))
+
+
+def cargar_clientes():
+    lista_clientes_widget.delete(0, tk.END)
+    try:
+        respuesta = requests.get(URL_SERVIDOR + "/clientes", params={"clave": CLAVE_ADMIN})
+        lista_clientes = respuesta.json()["clientes"]
+
+        menu_desplegable = menu_cliente["menu"]
+        menu_desplegable.delete(0, tk.END)
+
+        for cliente in lista_clientes:
+            lista_clientes_widget.insert(tk.END, cliente["nombre_cliente"] + "  —  " + cliente["clave"])
+            menu_desplegable.add_command(label=cliente["nombre_cliente"], command=lambda valor=cliente["nombre_cliente"]: variable_cliente_seleccionado.set(valor))
+    except Exception as error:
+        etiqueta_estado.config(text="No se pudo cargar la lista")
+
+
+def eliminar_cliente_seleccionado():
+    seleccion = lista_clientes_widget.curselection()
+    if not seleccion:
+        etiqueta_estado.config(text="Selecciona un cliente de la lista")
+        return
+
+    texto = lista_clientes_widget.get(seleccion[0])
+    clave_a_eliminar = texto.split("—")[1].strip()
+
+    datos = {"clave_admin": CLAVE_ADMIN, "clave_cliente": clave_a_eliminar}
+
+    try:
+        respuesta = requests.delete(URL_SERVIDOR + "/cliente", json=datos)
+        etiqueta_estado.config(text=respuesta.json().get("mensaje", "Listo"))
+        cargar_clientes()
+    except Exception as error:
+        etiqueta_estado.config(text="Error de conexión")
+
+
+boton_eliminar_cliente = tk.Button(ventana, text="Eliminar cliente seleccionado", font=("Segoe UI", 9, "bold"), bg="#e74c3c", fg="white", relief="flat", cursor="hand2", command=eliminar_cliente_seleccionado)
+boton_eliminar_cliente.grid(row=6, column=0, sticky="w", padx=(20, 10), pady=(0, 20))
+
+# ---------- COLUMNA DERECHA: VEHÍCULOS ----------
+
+etiqueta_seccion_vehiculos = tk.Label(ventana, text="Vehículos autorizados", font=("Segoe UI", 12, "bold"), bg=COLOR_FONDO, fg=COLOR_TEXTO)
+etiqueta_seccion_vehiculos.grid(row=1, column=1, sticky="w", padx=(10, 20))
+
+panel_vehiculo = tk.Frame(ventana, bg=COLOR_PANEL, padx=15, pady=12)
+panel_vehiculo.grid(row=2, column=1, sticky="ew", padx=(10, 20), pady=(5, 10))
+
+etiqueta_placa = tk.Label(panel_vehiculo, text="Placa del vehículo", font=("Segoe UI", 9), bg=COLOR_PANEL, fg=COLOR_TEXTO_SUAVE, anchor="w")
+etiqueta_placa.pack(fill="x")
+
+caja_placa = tk.Entry(panel_vehiculo, font=("Segoe UI", 11), justify="center", bg="white", fg="#2c3e50", relief="flat")
+caja_placa.pack(fill="x", ipady=5, pady=(4, 10))
+
+etiqueta_cliente_vehiculo = tk.Label(panel_vehiculo, text="Cliente dueño", font=("Segoe UI", 9), bg=COLOR_PANEL, fg=COLOR_TEXTO_SUAVE, anchor="w")
+etiqueta_cliente_vehiculo.pack(fill="x")
+
+variable_cliente_seleccionado = tk.StringVar(ventana)
+variable_cliente_seleccionado.set("Selecciona un cliente")
+
+menu_cliente = tk.OptionMenu(panel_vehiculo, variable_cliente_seleccionado, "Selecciona un cliente")
+menu_cliente.config(font=("Segoe UI", 10), bg="white", fg="#2c3e50", relief="flat")
+menu_cliente.pack(fill="x", pady=(4, 10))
+
+
+def agregar_vehiculo():
+    placa = caja_placa.get().strip()
+    cliente_elegido = variable_cliente_seleccionado.get()
+
+    if placa == "":
+        etiqueta_estado_vehiculo.config(text="Escribe una placa")
+        return
+
+    if cliente_elegido == "Selecciona un cliente":
+        etiqueta_estado_vehiculo.config(text="Elige un cliente de la lista")
+        return
+
+    datos = {"clave": CLAVE_ADMIN, "placa": placa, "cliente": cliente_elegido}
+
+    try:
+        respuesta = requests.post(URL_SERVIDOR + "/vehiculo", json=datos)
+        etiqueta_estado_vehiculo.config(text=respuesta.json().get("mensaje", "Listo"))
+        caja_placa.delete(0, tk.END)
+        cargar_vehiculos()
+    except Exception as error:
+        etiqueta_estado_vehiculo.config(text="Error de conexión")
+
+
+boton_agregar_vehiculo = tk.Button(panel_vehiculo, text="Agregar vehículo", font=("Segoe UI", 9, "bold"), bg=COLOR_ACENTO, fg="white", relief="flat", cursor="hand2", command=agregar_vehiculo)
+boton_agregar_vehiculo.pack(ipadx=15, ipady=5)
+
+etiqueta_estado_vehiculo = tk.Label(ventana, text="", font=("Segoe UI", 8), bg=COLOR_FONDO, fg=COLOR_TEXTO_SUAVE)
+etiqueta_estado_vehiculo.grid(row=3, column=1, sticky="w", padx=(10, 20))
+
+etiqueta_lista_vehiculos_titulo = tk.Label(ventana, text="Vehículos registrados", font=("Segoe UI", 10, "bold"), bg=COLOR_FONDO, fg=COLOR_TEXTO)
+etiqueta_lista_vehiculos_titulo.grid(row=4, column=1, sticky="w", padx=(10, 20), pady=(8, 0))
+
+lista_vehiculos_widget = tk.Listbox(ventana, font=("Consolas", 9), height=8, bg="#0f1720", fg=COLOR_TEXTO, relief="flat", selectbackground=COLOR_ACENTO, highlightthickness=0)
+lista_vehiculos_widget.grid(row=5, column=1, sticky="ew", padx=(10, 20), pady=(5, 8))
+
+
+def mostrar_vehiculos(lista_a_mostrar):
+    lista_vehiculos_widget.delete(0, tk.END)
+    for vehiculo in lista_a_mostrar:
+        lista_vehiculos_widget.insert(tk.END, vehiculo["placa"] + "  —  " + str(vehiculo["cliente"]))
+
+
+def cargar_vehiculos():
+    global todos_los_vehiculos
+    try:
+        respuesta = requests.get(URL_SERVIDOR + "/vehiculos", params={"clave": CLAVE_ADMIN})
+        todos_los_vehiculos = respuesta.json()["vehiculos"]
+        mostrar_vehiculos(todos_los_vehiculos)
+    except Exception as error:
+        etiqueta_estado_vehiculo.config(text="No se pudo cargar la lista")
+
+
+def filtrar_vehiculos_por_cliente(evento):
+    seleccion = lista_clientes_widget.curselection()
+    if not seleccion:
+        return
+
+    texto = lista_clientes_widget.get(seleccion[0])
+    nombre_cliente_seleccionado = texto.split("—")[0].strip()
+
+    vehiculos_filtrados = []
+    for vehiculo in todos_los_vehiculos:
+        if vehiculo["cliente"] == nombre_cliente_seleccionado:
+            vehiculos_filtrados.append(vehiculo)
+
+    mostrar_vehiculos(vehiculos_filtrados)
+
+
+lista_clientes_widget.bind("<<ListboxSelect>>", filtrar_vehiculos_por_cliente)
+
+
+def eliminar_vehiculo_seleccionado():
+    seleccion = lista_vehiculos_widget.curselection()
+    if not seleccion:
+        etiqueta_estado_vehiculo.config(text="Selecciona un vehículo de la lista")
+        return
+
+    texto = lista_vehiculos_widget.get(seleccion[0])
+    placa_a_eliminar = texto.split("—")[0].strip()
+
+    datos = {"clave": CLAVE_ADMIN, "placa": placa_a_eliminar}
+
+    try:
+        respuesta = requests.delete(URL_SERVIDOR + "/vehiculo", json=datos)
+        etiqueta_estado_vehiculo.config(text=respuesta.json().get("mensaje", "Listo"))
+        cargar_vehiculos()
+    except Exception as error:
+        etiqueta_estado_vehiculo.config(text="Error de conexión")
+
+
+boton_eliminar_vehiculo = tk.Button(ventana, text="Eliminar vehículo seleccionado", font=("Segoe UI", 9, "bold"), bg="#e74c3c", fg="white", relief="flat", cursor="hand2", command=eliminar_vehiculo_seleccionado)
+boton_eliminar_vehiculo.grid(row=6, column=1, sticky="w", padx=(10, 20), pady=(0, 20))
+
+# ---------- CONFIGURACIÓN DE LAS COLUMNAS ----------
+
+ventana.grid_columnconfigure(0, weight=1)
+ventana.grid_columnconfigure(1, weight=1)
+
+cargar_clientes()
+cargar_vehiculos()
+ventana.mainloop()

@@ -1,9 +1,11 @@
 import sqlite3
 from flask import Flask, request, render_template, session, redirect
+from datetime import timedelta
 import os
 
 app = Flask(__name__)
 app.secret_key = "otra-clave-secreta-solo-para-sesiones-2026"
+app.permanent_session_lifetime = timedelta(days=30)
 
 CLAVE_ADMIN = "admin-mgchs-2026-super-secreta"
 
@@ -59,12 +61,14 @@ def login():
     if request.method == "POST":
         nombre_ingresado = request.form.get("nombre").strip()
         clave_ingresada = request.form.get("clave").strip()
+        recordarme = request.form.get("recordarme")
 
         cursor.execute("SELECT clave FROM clientes WHERE nombre_cliente = ?", (nombre_ingresado,))
         resultado = cursor.fetchone()
 
         if resultado is not None and resultado[0] == clave_ingresada:
             session["cliente"] = nombre_ingresado
+            session.permanent = True if recordarme else False
             return redirect("/panel")
         else:
             return render_template("login.html", error="Usuario o contraseña incorrectos")
@@ -306,6 +310,22 @@ def eliminar_cliente():
     conexion.commit()
 
     return {"mensaje": "Cliente eliminado correctamente"}
+
+
+@app.route("/cliente/clave", methods=["POST"])
+def cambiar_clave_cliente():
+    datos = request.get_json()
+
+    if datos.get("clave_admin") != CLAVE_ADMIN:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = datos["nombre_cliente"].strip()
+    clave_nueva = datos["clave_nueva"].strip()
+
+    cursor.execute("UPDATE clientes SET clave = ? WHERE nombre_cliente = ?", (clave_nueva, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Clave del cliente actualizada correctamente"}
 
 
 app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
