@@ -79,6 +79,50 @@ def panel():
     nombre_cliente = session["cliente"]
     return render_template("panel.html", nombre_cliente=nombre_cliente)
 
+@app.route("/mis-vehiculos", methods=["GET"])
+def mis_vehiculos():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+
+    cursor.execute("SELECT placa FROM vehiculos WHERE cliente = ?", (nombre_cliente,))
+    filas = cursor.fetchall()
+
+    lista_placas = []
+    for fila in filas:
+        lista_placas.append(fila[0])
+
+    return {"vehiculos": lista_placas}
+
+@app.route("/mi-vehiculo", methods=["POST"])
+def agregar_mi_vehiculo():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+    datos = request.get_json()
+    placa = datos["placa"].strip().upper()
+
+    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa, cliente) VALUES (?, ?)", (placa, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Vehiculo agregado correctamente"}
+
+@app.route("/mi-vehiculo", methods=["DELETE"])
+def eliminar_mi_vehiculo():
+    if "cliente" not in session:
+        return {"error": "No autorizado"}, 401
+
+    nombre_cliente = session["cliente"]
+    datos = request.get_json()
+    placa = datos["placa"].strip().upper()
+
+    cursor.execute("DELETE FROM vehiculos WHERE placa = ? AND cliente = ?", (placa, nombre_cliente))
+    conexion.commit()
+
+    return {"mensaje": "Vehiculo eliminado correctamente"}
+
 @app.route("/evento", methods=["POST"])
 def recibir_evento():
     datos = request.get_json()

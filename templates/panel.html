@@ -4,12 +4,78 @@
     <meta charset="UTF-8">
     <title>Panel del cliente</title>
     <style>
-        body { background-color: #1e2a38; font-family: Segoe UI, sans-serif; color: #ecf0f1; padding: 30px; }
-        h1 { color: #ecf0f1; }
+        body { background-color: #1e2a38; font-family: Segoe UI, sans-serif; color: #ecf0f1; padding: 30px; margin: 0; }
+        h1 { margin-bottom: 5px; }
+        .panel { background-color: #25384d; padding: 20px; border-radius: 8px; max-width: 500px; margin-top: 20px; }
+        input { padding: 8px; border-radius: 4px; border: none; margin-right: 8px; }
+        button { padding: 8px 16px; background-color: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button.eliminar { background-color: #e74c3c; padding: 4px 10px; font-size: 12px; margin-left: 10px; }
+        ul { list-style: none; padding: 0; }
+        li { background-color: #0f1720; padding: 10px; margin-top: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .mensaje { font-size: 13px; color: #95a5a6; margin-top: 10px; }
     </style>
 </head>
 <body>
     <h1>🚌 Bienvenido, {{ nombre_cliente }}</h1>
-    <p>Aquí va a vivir tu panel de administración.</p>
+
+    <div class="panel">
+        <h3>Agregar vehículo</h3>
+        <input type="text" id="caja_placa" placeholder="Placa">
+        <button onclick="agregarVehiculo()">Agregar</button>
+        <p class="mensaje" id="mensaje_estado"></p>
+
+        <h3>Mis vehículos</h3>
+        <ul id="lista_vehiculos"></ul>
+    </div>
+
+    <script>
+        function cargarVehiculos() {
+            fetch("/mis-vehiculos")
+                .then(respuesta => respuesta.json())
+                .then(datos => {
+                    const lista = document.getElementById("lista_vehiculos");
+                    lista.innerHTML = "";
+                    datos.vehiculos.forEach(placa => {
+                        const item = document.createElement("li");
+                        item.innerHTML = placa + ' <button class="eliminar" onclick="eliminarVehiculo(\'' + placa + '\')">Eliminar</button>';
+                        lista.appendChild(item);
+                    });
+                });
+        }
+
+        function agregarVehiculo() {
+            const placa = document.getElementById("caja_placa").value.trim();
+            if (placa === "") {
+                return;
+            }
+
+            fetch("/mi-vehiculo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ placa: placa })
+            })
+                .then(respuesta => respuesta.json())
+                .then(datos => {
+                    document.getElementById("mensaje_estado").innerText = datos.mensaje;
+                    document.getElementById("caja_placa").value = "";
+                    cargarVehiculos();
+                });
+        }
+
+        function eliminarVehiculo(placa) {
+            fetch("/mi-vehiculo", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ placa: placa })
+            })
+                .then(respuesta => respuesta.json())
+                .then(datos => {
+                    document.getElementById("mensaje_estado").innerText = datos.mensaje;
+                    cargarVehiculos();
+                });
+        }
+
+        cargarVehiculos();
+    </script>
 </body>
 </html>
